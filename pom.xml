@@ -124,6 +124,10 @@
             <id>enginehub-repo</id>
             <url>https://maven.enginehub.org/repo/</url>
         </repository>
+        <repository>
+            <id>luckynetwork</id>
+            <url>https://javarepo.lucky.netbird.cloud/repository/maven-public/</url>
+        </repository>
     </repositories>
 
     <dependencyManagement>
@@ -272,6 +276,13 @@
             <groupId>com.zaxxer</groupId>
             <artifactId>HikariCP</artifactId>
             <version>6.2.1</version>
+        </dependency>
+        <!-- LuckySkyblock -->
+        <dependency>
+            <groupId>id.luckynetwork</groupId>
+            <artifactId>LuckySkyblock</artifactId>
+            <version>4.1.5</version>
+            <scope>provided</scope>
         </dependency>
     </dependencies>
 </project>
