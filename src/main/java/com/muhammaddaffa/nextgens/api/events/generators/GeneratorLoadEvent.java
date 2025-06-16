@@ -1,6 +1,6 @@
 package com.muhammaddaffa.nextgens.api.events.generators;
 
-import com.muhammaddaffa.nextgens.generators.Generator;
+import com.muhammaddaffa.nextgens.objects.Generator;
 
 public class GeneratorLoadEvent extends GeneratorEvent {
 

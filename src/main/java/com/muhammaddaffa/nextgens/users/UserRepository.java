@@ -2,8 +2,8 @@ package com.muhammaddaffa.nextgens.users;
 
 import com.muhammaddaffa.mdlib.utils.Logger;
 import com.muhammaddaffa.nextgens.NextGens;
-import com.muhammaddaffa.nextgens.database.DatabaseManager;
-import com.muhammaddaffa.nextgens.users.models.User;
+import com.muhammaddaffa.nextgens.managers.DatabaseManager;
+import com.muhammaddaffa.nextgens.objects.User;
 
 import java.sql.Connection;
 import java.sql.PreparedStatement;

@@ -1,7 +1,7 @@
 package com.muhammaddaffa.nextgens.generators.listeners.helpers;
 
 import com.muhammaddaffa.mdlib.xseries.particles.XParticle;
-import com.muhammaddaffa.nextgens.generators.Generator;
+import com.muhammaddaffa.nextgens.objects.Generator;
 import org.bukkit.block.Block;
 
 public class GeneratorParticle {

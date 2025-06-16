@@ -1,6 +1,6 @@
 package com.muhammaddaffa.nextgens.api.events.generators;
 
-import com.muhammaddaffa.nextgens.generators.Generator;
+import com.muhammaddaffa.nextgens.objects.Generator;
 import org.bukkit.event.Cancellable;
 import org.bukkit.event.Event;
 import org.bukkit.event.HandlerList;

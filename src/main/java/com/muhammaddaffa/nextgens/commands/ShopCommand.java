@@ -6,7 +6,7 @@ import com.muhammaddaffa.mdlib.utils.Common;
 import com.muhammaddaffa.mdlib.utils.Config;
 import com.muhammaddaffa.mdlib.utils.Placeholder;
 import com.muhammaddaffa.nextgens.NextGens;
-import com.muhammaddaffa.nextgens.generators.managers.GeneratorManager;
+import com.muhammaddaffa.nextgens.managers.GeneratorManager;
 import com.muhammaddaffa.nextgens.gui.ShopInventory;
 import org.bukkit.configuration.file.FileConfiguration;
 import org.bukkit.entity.Player;

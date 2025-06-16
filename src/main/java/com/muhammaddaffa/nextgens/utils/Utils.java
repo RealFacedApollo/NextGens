@@ -6,7 +6,7 @@ import com.muhammaddaffa.mdlib.utils.Placeholder;
 import com.muhammaddaffa.mdlib.xseries.XSound;
 import com.muhammaddaffa.nextgens.NextGens;
 import com.muhammaddaffa.nextgens.api.events.PlayerCashbackEvent;
-import com.muhammaddaffa.nextgens.users.UserManager;
+import com.muhammaddaffa.nextgens.managers.UserManager;
 import me.clip.placeholderapi.PlaceholderAPI;
 import org.bukkit.Bukkit;
 import org.bukkit.Sound;

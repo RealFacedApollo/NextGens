@@ -9,29 +9,16 @@ import com.muhammaddaffa.mdlib.utils.Logger;
 import com.muhammaddaffa.mdlib.utils.updatechecker.UpdateCheckSource;
 import com.muhammaddaffa.mdlib.utils.updatechecker.UpdateChecker;
 import com.muhammaddaffa.nextgens.api.GeneratorAPI;
-import com.muhammaddaffa.nextgens.autosell.AutosellManager;
 import com.muhammaddaffa.nextgens.commands.*;
-import com.muhammaddaffa.nextgens.database.DatabaseManager;
-import com.muhammaddaffa.nextgens.events.managers.EventManager;
-import com.muhammaddaffa.nextgens.generators.listeners.*;
-import com.muhammaddaffa.nextgens.generators.managers.GeneratorManager;
 import com.muhammaddaffa.nextgens.generators.runnables.CorruptionTask;
 import com.muhammaddaffa.nextgens.generators.runnables.GeneratorTask;
 import com.muhammaddaffa.nextgens.generators.runnables.NotifyTask;
-import com.muhammaddaffa.nextgens.hooks.bento.BentoListener;
-import com.muhammaddaffa.nextgens.hooks.fabledsb.FabledSbListener;
 import com.muhammaddaffa.nextgens.hooks.papi.GensExpansion;
-import com.muhammaddaffa.nextgens.hooks.ssb2.SSB2Listener;
+import com.muhammaddaffa.nextgens.listeners.*;
+import com.muhammaddaffa.nextgens.managers.*;
 import com.muhammaddaffa.nextgens.sell.multipliers.SellMultiplierRegistry;
-import com.muhammaddaffa.nextgens.refund.RefundManager;
-import com.muhammaddaffa.nextgens.refund.listeners.RefundListener;
-import com.muhammaddaffa.nextgens.sell.SellManager;
-import com.muhammaddaffa.nextgens.sellwand.listeners.SellwandListener;
-import com.muhammaddaffa.nextgens.sellwand.managers.SellwandManager;
-import com.muhammaddaffa.nextgens.users.UserManager;
 import com.muhammaddaffa.nextgens.users.UserRepository;
 import com.muhammaddaffa.nextgens.utils.Settings;
-import com.muhammaddaffa.nextgens.worth.WorthManager;
 import dev.norska.dsw.DeluxeSellwands;
 import org.bstats.bukkit.Metrics;
 import org.bstats.charts.SimplePie;
@@ -218,9 +205,9 @@ public final class NextGens extends JavaPlugin {
             Logger.info("Found SuperiorSkyblock2! Registering hook...");
             pm.registerEvents(new SSB2Listener(this.generatorManager, this.refundManager), this);
         }
-        if (pm.getPlugin("BentoBox") != null) {
-            Logger.info("Found BentoBox! Registering hook...");
-            pm.registerEvents(new BentoListener(this.generatorManager, this.refundManager), this);
+        if (pm.getPlugin("LuckySkyblock") != null) {
+            Logger.info("Found LuckySkyblock! Registering hook...");
+            pm.registerEvents(new LuckySkyblockListener(this.generatorManager, this.refundManager), this);
         }
         if (pm.getPlugin("HolographicDisplays") != null) {
             Logger.info("Found HolographicDisplays! Registering hook...");
@@ -238,13 +225,6 @@ public final class NextGens extends JavaPlugin {
                 double value = api.getWorth(itemStack);
                 return value <= 0 ? null :value;
             });
-        }
-        if (pm.getPlugin("LWC") != null) {
-            Logger.info("Found LWC! Registering hook...");
-        }
-        if (pm.getPlugin("FabledSkyblock") != null) {
-            Logger.info("Found FabledSkyblock! Registering hook...");
-            pm.registerEvents(new FabledSbListener(this.generatorManager, this.refundManager), this);
         }
         // register bstats metrics hook
         this.connectMetrics();
@@ -339,12 +319,7 @@ public final class NextGens extends JavaPlugin {
     }
 
     private void updateCheck(){
-        Executor.async(() -> new UpdateChecker(this, UpdateCheckSource.SPIGOT, SPIGOT_ID + "")
-                .setDownloadLink(SPIGOT_ID)
-                .checkEveryXHours(24)
-                .setNotifyOpsOnJoin(true)
-                .setNotifyByPermissionOnJoin("nextgens.notifyupdate")
-                .checkNow());
+        // Disable Update Checker
     }
 
     private String yesOrNo(boolean status) {

@@ -2,9 +2,9 @@ package com.muhammaddaffa.nextgens.sell;
 
 import com.muhammaddaffa.nextgens.NextGens;
 import com.muhammaddaffa.nextgens.sell.multipliers.SellMultiplierProvider;
-import com.muhammaddaffa.nextgens.sellwand.models.SellwandData;
-import com.muhammaddaffa.nextgens.users.models.User;
-import com.muhammaddaffa.nextgens.utils.SellData;
+import com.muhammaddaffa.nextgens.objects.SellwandData;
+import com.muhammaddaffa.nextgens.objects.User;
+import com.muhammaddaffa.nextgens.objects.SellData;
 import org.bukkit.configuration.file.FileConfiguration;
 import org.bukkit.entity.Player;
 

@@ -1,8 +1,8 @@
 package com.muhammaddaffa.nextgens.api.events.generators;
 
-import com.muhammaddaffa.nextgens.generators.ActiveGenerator;
-import com.muhammaddaffa.nextgens.generators.Drop;
-import com.muhammaddaffa.nextgens.generators.Generator;
+import com.muhammaddaffa.nextgens.objects.ActiveGenerator;
+import com.muhammaddaffa.nextgens.objects.Drop;
+import com.muhammaddaffa.nextgens.objects.Generator;
 
 public class GeneratorGenerateItemEvent extends GeneratorEvent{
 

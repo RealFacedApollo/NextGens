@@ -1,16 +1,16 @@
 package com.muhammaddaffa.nextgens.api;
 
 import com.muhammaddaffa.nextgens.NextGens;
-import com.muhammaddaffa.nextgens.events.Event;
-import com.muhammaddaffa.nextgens.events.managers.EventManager;
-import com.muhammaddaffa.nextgens.generators.ActiveGenerator;
-import com.muhammaddaffa.nextgens.generators.Generator;
-import com.muhammaddaffa.nextgens.generators.managers.GeneratorManager;
-import com.muhammaddaffa.nextgens.refund.RefundManager;
-import com.muhammaddaffa.nextgens.sellwand.managers.SellwandManager;
-import com.muhammaddaffa.nextgens.users.models.User;
-import com.muhammaddaffa.nextgens.users.UserManager;
-import com.muhammaddaffa.nextgens.worth.WorthManager;
+import com.muhammaddaffa.nextgens.objects.Event;
+import com.muhammaddaffa.nextgens.managers.EventManager;
+import com.muhammaddaffa.nextgens.objects.ActiveGenerator;
+import com.muhammaddaffa.nextgens.objects.Generator;
+import com.muhammaddaffa.nextgens.managers.GeneratorManager;
+import com.muhammaddaffa.nextgens.managers.RefundManager;
+import com.muhammaddaffa.nextgens.managers.SellwandManager;
+import com.muhammaddaffa.nextgens.objects.User;
+import com.muhammaddaffa.nextgens.managers.UserManager;
+import com.muhammaddaffa.nextgens.managers.WorthManager;
 import net.brcdev.shopgui.ShopGuiPlusApi;
 import org.bukkit.Bukkit;
 import org.bukkit.Location;

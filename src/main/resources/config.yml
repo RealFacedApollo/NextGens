@@ -20,27 +20,25 @@
 # Only turn this off if you know what you are doing.
 auto-config-update: true
 
-# MySQL feature to save/load generators
-# If disabled, we will use SQLite
-mysql:
-  enabled: false
-  host: localhost
-  port: 3306
-  database: db_nextgens
-  user: root
-  password: ''
-  useSSL: false
+# Server ID for multi-instance support
+# Leave empty to auto-generate based on port and timestamp
+server-id: ''
 
-# Should we save the data immediately when there's a changes?
-database:
-  immediate-saving: false
+# LuckyNetwork PersistentRedis
+redis:
+  host: localhost
+  port: 6379
+  password: ''
+  database: 0
 
 # Corruption System, check resource description on the market for details
 # tldr; if this option is enabled, generators will be broken occasionally
-#       and player need to fix the broken generator with money by
-#       shift + right-clicking the generator
+#       and player need to fix the broken generator with money by shift + right-clicking the generator
+#       federated: corruption will be handled by each instance, so you need to set up the redis config
+#       centralized: corruption will be handled by spacetimedb
+#       disabled: corruption will be disabled
 corruption:
-  enabled: true
+  mode: federated # federated or centralized or disabled
   # How often should corruption happen (in minutes)
   interval: 180
   # How many generators can possibly corrupt
@@ -113,7 +111,10 @@ sell-command: true
 # The permission will be 'nextgens.generator.<id>'
 place-permission: false
 # Should generator can only work if the owner is online?
-online-only: true
+# Disabled: generator will work even if the owner is offline
+# Island-only: generator will work only if the owner is online and on the same island
+# Global: generator will work only if the owner is online in any Skyblock instance even if different server
+online-only: true # disabled, island-only, global
 # Should we prevent generator from breaking because of explosion?
 anti-explosion: true
 # Should we prevent placing item dropped by generator?
@@ -292,6 +293,10 @@ generator-upgrade-options:
     volume: 1.0
     pitch: 1.0
 
+# Anti Dupe
+anti-dupe:
+  enabled: true
+  
 # List of options on corrupt fix
 corrupt-fix-options:
   # Should we display particles upon fixing generator?

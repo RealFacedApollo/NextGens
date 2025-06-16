@@ -1,6 +1,6 @@
 package com.muhammaddaffa.nextgens.api.events;
 
-import com.muhammaddaffa.nextgens.users.models.User;
+import com.muhammaddaffa.nextgens.objects.User;
 import org.bukkit.entity.Player;
 import org.bukkit.event.Cancellable;
 import org.bukkit.event.Event;

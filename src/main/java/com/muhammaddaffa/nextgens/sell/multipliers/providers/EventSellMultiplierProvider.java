@@ -1,10 +1,10 @@
 package com.muhammaddaffa.nextgens.sell.multipliers.providers;
 
 import com.muhammaddaffa.nextgens.NextGens;
-import com.muhammaddaffa.nextgens.events.Event;
+import com.muhammaddaffa.nextgens.objects.Event;
 import com.muhammaddaffa.nextgens.sell.multipliers.SellMultiplierProvider;
-import com.muhammaddaffa.nextgens.sellwand.models.SellwandData;
-import com.muhammaddaffa.nextgens.users.models.User;
+import com.muhammaddaffa.nextgens.objects.SellwandData;
+import com.muhammaddaffa.nextgens.objects.User;
 import org.bukkit.entity.Player;
 
 public class EventSellMultiplierProvider implements SellMultiplierProvider {

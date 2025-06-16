@@ -3,7 +3,7 @@ package com.muhammaddaffa.nextgens.commands;
 import com.muhammaddaffa.mdlib.commandapi.CommandAPICommand;
 import com.muhammaddaffa.nextgens.NextGens;
 import com.muhammaddaffa.nextgens.gui.PlayerSettingsInventory;
-import com.muhammaddaffa.nextgens.users.UserManager;
+import com.muhammaddaffa.nextgens.managers.UserManager;
 import org.bukkit.configuration.file.FileConfiguration;
 
 import java.util.List;

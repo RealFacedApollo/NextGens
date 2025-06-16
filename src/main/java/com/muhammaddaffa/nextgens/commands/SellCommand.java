@@ -5,7 +5,7 @@ import com.muhammaddaffa.mdlib.commandapi.CommandAPICommand;
 import com.muhammaddaffa.mdlib.commandapi.arguments.PlayerArgument;
 import com.muhammaddaffa.mdlib.utils.*;
 import com.muhammaddaffa.nextgens.NextGens;
-import com.muhammaddaffa.nextgens.users.UserManager;
+import com.muhammaddaffa.nextgens.managers.UserManager;
 import org.bukkit.configuration.file.FileConfiguration;
 import org.bukkit.entity.Player;
 

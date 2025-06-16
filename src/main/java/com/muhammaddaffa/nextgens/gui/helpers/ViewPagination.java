@@ -1,6 +1,6 @@
 package com.muhammaddaffa.nextgens.gui.helpers;
 
-import com.muhammaddaffa.nextgens.generators.ActiveGenerator;
+import com.muhammaddaffa.nextgens.objects.ActiveGenerator;
 
 import java.util.ArrayList;
 import java.util.HashMap;
