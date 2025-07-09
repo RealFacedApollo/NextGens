@@ -20,9 +20,7 @@
 # Only turn this off if you know what you are doing.
 auto-config-update: true
 
-# Server ID for multi-instance support
-# Leave empty to auto-generate based on port and timestamp
-server-id: ''
+
 
 # LuckyNetwork PersistentRedis
 redis:

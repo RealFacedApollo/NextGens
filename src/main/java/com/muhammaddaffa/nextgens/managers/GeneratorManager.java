@@ -1,415 +1,487 @@
 package com.muhammaddaffa.nextgens.managers;
 
-import com.muhammaddaffa.mdlib.utils.*;
+import com.google.gson.Gson;
+import com.muhammaddaffa.mdlib.utils.LocationUtils;
+import com.muhammaddaffa.mdlib.utils.Logger;
 import com.muhammaddaffa.nextgens.NextGens;
-import com.muhammaddaffa.nextgens.api.events.generators.GeneratorLoadEvent;
-import com.muhammaddaffa.nextgens.managers.DatabaseManager;
 import com.muhammaddaffa.nextgens.objects.ActiveGenerator;
-import com.muhammaddaffa.nextgens.objects.Drop;
 import com.muhammaddaffa.nextgens.objects.Generator;
-import com.muhammaddaffa.nextgens.generators.runnables.GeneratorTask;
-import com.muhammaddaffa.nextgens.requirements.GensRequirement;
-import com.muhammaddaffa.nextgens.requirements.impl.PermissionRequirement;
-import com.muhammaddaffa.nextgens.requirements.impl.PlaceholderRequirement;
-import com.muhammaddaffa.nextgens.utils.*;
-import me.clip.placeholderapi.PlaceholderAPI;
-import net.brcdev.shopgui.core.BConfig;
-import org.bukkit.Bukkit;
 import org.bukkit.Location;
-import org.bukkit.Material;
+import org.bukkit.World;
 import org.bukkit.block.Block;
-import org.bukkit.configuration.ConfigurationSection;
-import org.bukkit.configuration.file.FileConfiguration;
-import org.bukkit.configuration.file.YamlConfiguration;
 import org.bukkit.entity.Player;
-import org.bukkit.inventory.ItemStack;
-import org.bukkit.persistence.PersistentDataType;
-import org.bukkit.scheduler.BukkitRunnable;
-import org.bukkit.scheduler.BukkitTask;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
+import redis.clients.jedis.Transaction;
 
-import java.io.File;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.ConcurrentMap;
-import java.util.concurrent.ThreadLocalRandom;
 import java.util.stream.Collectors;
 
 public class GeneratorManager {
 
-    private final Map<String, Generator> generatorMap = new HashMap<>();
-    private final ConcurrentMap<String, ActiveGenerator> activeGenerators = new ConcurrentHashMap<>();
+    private static final String GENERATOR_PREFIX = "nextgens:generator:";
+    private static final String GENERATOR_OWNER_PREFIX = "nextgens:generators:owner:";
+    private static final String GENERATOR_WORLD_PREFIX = "nextgens:generators:world:";
+    private static final String GENERATOR_COUNT_PREFIX = "nextgens:generator:count:";
+    private static final String GENERATOR_LOCK_PREFIX = "nextgens:generator:lock:";
+    private static final String GENERATOR_OWNER_INDEX = "nextgens:owners";
+    private static final String GENERATOR_WORLD_INDEX = "nextgens:worlds";
+    
+    private final DataManager dataManager;
+    private final Gson gson;
+    
+    // Local cache for active generators that this server is managing
+    private final Map<String, ActiveGenerator> localActiveGenerators = new ConcurrentHashMap<>();
 
-    private final Map<UUID, Integer> generatorCount = new HashMap<>();
+    public GeneratorManager(DataManager dataManager) {
+        this.dataManager = dataManager;
+        this.gson = new Gson();
+    }
 
-    private final DatabaseManager dbm;
-    public GeneratorManager(DatabaseManager dbm) {
-        this.dbm = dbm;
+    /**
+     * Get all generator IDs for a specific owner and world
+     */
+    public Set<String> getGeneratorsByOwnerAndWorld(UUID owner, String worldName) {
+        return redisManager.executeWithJedis(jedis -> {
+            String key = GENERATOR_OWNER_PREFIX + owner.toString() + ":" + worldName;
+            return jedis.smembers(key);
+        });
+    }
+
+    /**
+     * Get all generator IDs in a specific world
+     */
+    public Set<String> getGeneratorsByWorld(String worldName) {
+        return redisManager.executeWithJedis(jedis -> {
+            String key = GENERATOR_WORLD_PREFIX + worldName;
+            return jedis.smembers(key);
+        });
+    }
+
+    /**
+     * Get all generator IDs for a specific owner across all worlds - OPTIMIZED VERSION
+     */
+    public Set<String> getGeneratorsByOwner(UUID owner) {
+        return redisManager.executeWithJedis(jedis -> {
+            // Get all worlds this owner has generators in
+            String ownerWorldsKey = GENERATOR_OWNER_PREFIX + owner.toString() + ":worlds";
+            Set<String> worlds = jedis.smembers(ownerWorldsKey);
+            
+            if (worlds.isEmpty()) {
+                return new HashSet<>();
+            }
+            
+            Set<String> allGenerators = new HashSet<>();
+            for (String world : worlds) {
+                String ownerKey = GENERATOR_OWNER_PREFIX + owner.toString() + ":" + world;
+                allGenerators.addAll(jedis.smembers(ownerKey));
+            }
+            
+            return allGenerators;
+        });
     }
 
     @Nullable
-    public Generator getGenerator(String id) {
-        return this.generatorMap.get(id);
-    }
-
-    @Nullable
-    public Generator getGenerator(ItemStack stack) {
-        if (stack == null || stack.getType() == Material.AIR || stack.getItemMeta() == null) {
-            return null;
-        }
-        // scrap the id from the item
-        String id = stack.getItemMeta().getPersistentDataContainer().get(NextGens.generator_id, PersistentDataType.STRING);
-        if (id == null) {
-            return null;
-        }
-        return this.getGenerator(id);
-    }
-
-    @NotNull
-    public Generator getRandomGenerator() {
-        // turn the key into list
-        List<String> generators = this.generatorMap.keySet().stream().toList();
-        return this.generatorMap.get(generators.get(ThreadLocalRandom.current().nextInt(generators.size())));
-    }
-
-    public Set<String> getGeneratorIDs() {
-        return this.generatorMap.keySet();
-    }
-
-    public boolean isGeneratorItem(ItemStack stack) {
-        if (stack == null || stack.getType() == Material.AIR || stack.getItemMeta() == null) {
-            return false;
-        }
-        return stack.getItemMeta().getPersistentDataContainer().has(NextGens.generator_id, PersistentDataType.STRING);
-    }
-
-    public boolean isDropItem(ItemStack stack) {
-        if (stack == null || stack.getType() == Material.AIR || stack.getItemMeta() == null) {
-            return false;
-        }
-        return stack.getItemMeta().getPersistentDataContainer().has(NextGens.drop_value, PersistentDataType.DOUBLE);
-    }
-
-    public Collection<Generator> getGenerators() {
-        return this.generatorMap.values();
-    }
-
-    public int getGeneratorCount(Player player) {
-        return this.getGeneratorCount(player.getUniqueId());
-    }
-
-    public int getGeneratorCount(UUID uuid) {
-        return this.generatorCount.getOrDefault(uuid, 0);
-    }
-
-    public void addGeneratorCount(Player player, int amount) {
-        this.addGeneratorCount(player.getUniqueId(), amount);
-    }
-
-    public void addGeneratorCount(UUID uuid, int amount) {
-        this.generatorCount.put(uuid, this.generatorCount.getOrDefault(uuid, 0) + amount);
-    }
-
-    public void removeGeneratorCount(Player player, int amount) {
-        this.removeGeneratorCount(player.getUniqueId(), amount);
-    }
-
-    public void removeGeneratorCount(UUID uuid, int amount) {
-        this.generatorCount.put(uuid, this.generatorCount.getOrDefault(uuid, 0) - amount);
-    }
-
-    public Collection<ActiveGenerator> getActiveGenerator() {
-        return this.activeGenerators.values();
-    }
-
-    @NotNull
-    public List<ActiveGenerator> getActiveGenerator(Player player) {
-        return this.getActiveGenerator(player.getUniqueId());
-    }
-
-    @NotNull
-    public List<ActiveGenerator> getActiveGenerator(UUID uuid) {
-        return this.getActiveGenerator().stream()
-                .filter(active -> active.getOwner().equals(uuid))
-                .collect(Collectors.toList());
+    public ActiveGenerator getActiveGenerator(@NotNull Location location) {
+        return getActiveGenerator(LocationUtils.serialize(location));
     }
 
     @Nullable
     public ActiveGenerator getActiveGenerator(@Nullable Block block) {
         if (block == null) return null;
-        return this.getActiveGenerator(block.getLocation());
-    }
-
-    @Nullable
-    public ActiveGenerator getActiveGenerator(@NotNull Location location) {
-        return this.getActiveGenerator(LocationUtils.serialize(location));
+        return getActiveGenerator(block.getLocation());
     }
 
     @Nullable
     public ActiveGenerator getActiveGenerator(String serialized) {
-        return this.activeGenerators.get(serialized);
-    }
-
-    public ActiveGenerator registerGenerator(Player owner, @NotNull Generator generator, @NotNull Block block) {
-        return this.registerGenerator(owner.getUniqueId(), generator, block);
-    }
-
-    public ActiveGenerator registerGenerator(UUID owner, @NotNull Generator generator, @NotNull Block block) {
-        ActiveGenerator active = this.getActiveGenerator(block);
-        // check if block is already active generator or not
-        if (active == null) {
-            // register the new one
-            String serialized = LocationUtils.serialize(block.getLocation());
-            active = new ActiveGenerator(owner, block.getLocation(), generator);
-            this.activeGenerators.put(serialized, active);
-            // add generator count
-            this.addGeneratorCount(owner, 1);
-        } else {
-            // change the generator id
-            active.setGenerator(generator);
-            // set the block
-            Executor.syncLater(2L, () -> block.setType(generator.item().getType()));
+        // Check local cache first
+        ActiveGenerator local = localActiveGenerators.get(serialized);
+        if (local != null) {
+            return local;
         }
-        ActiveGenerator finalActive = active;
-        // save the generator on the database
-        Executor.async(() -> this.dbm.saveGenerator(finalActive));
-        return active;
+        
+        // Query Redis
+        return redisManager.executeWithJedis(jedis -> {
+            String generatorJson = jedis.get(GENERATOR_PREFIX + serialized);
+            if (generatorJson != null) {
+                return gson.fromJson(generatorJson, ActiveGenerator.class);
+            }
+            return null;
+        });
     }
 
+    @NotNull
+    public List<ActiveGenerator> getActiveGenerator(Player player) {
+        return getActiveGenerator(player.getUniqueId());
+    }
+
+    @NotNull
+    public List<ActiveGenerator> getActiveGenerator(UUID uuid) {
+        Set<String> generatorIds = getGeneratorsByOwner(uuid);
+        if (generatorIds == null || generatorIds.isEmpty()) {
+            return new ArrayList<>();
+        }
+
+        return redisManager.executeWithJedis(jedis -> {
+            List<ActiveGenerator> generators = new ArrayList<>();
+            for (String generatorId : generatorIds) {
+                String generatorJson = jedis.get(GENERATOR_PREFIX + generatorId);
+                if (generatorJson != null) {
+                    ActiveGenerator generator = gson.fromJson(generatorJson, ActiveGenerator.class);
+                    generators.add(generator);
+                }
+            }
+            return generators;
+        });
+    }
+
+    /**
+     * Register generator with ATOMIC transaction to ensure data consistency
+     */
+    public ActiveGenerator registerGenerator(UUID owner, @NotNull Generator generatorType, @NotNull Block block) {
+        String serialized = LocationUtils.serialize(block.getLocation());
+        String worldName = block.getWorld().getName();
+        
+        return redisManager.executeWithJedis(jedis -> {
+            // Check if generator already exists
+            String existingJson = jedis.get(GENERATOR_PREFIX + serialized);
+            ActiveGenerator active;
+            
+            if (existingJson != null) {
+                // Update existing generator (no transaction needed for single update)
+                active = gson.fromJson(existingJson, ActiveGenerator.class);
+                active.setGenerator(generatorType);
+                String generatorJson = gson.toJson(active);
+                jedis.set(GENERATOR_PREFIX + serialized, generatorJson);
+            } else {
+                // Create new generator with ATOMIC transaction
+                active = new ActiveGenerator(owner, block.getLocation(), generatorType);
+                String generatorJson = gson.toJson(active);
+                
+                // Use transaction to ensure atomicity
+                Transaction transaction = jedis.multi();
+                try {
+                    // Save generator data
+                    transaction.set(GENERATOR_PREFIX + serialized, generatorJson);
+                    
+                    // Add to owner index
+                    String ownerKey = GENERATOR_OWNER_PREFIX + owner.toString() + ":" + worldName;
+                    transaction.sadd(ownerKey, serialized);
+                    
+                    // Add to world index
+                    String worldKey = GENERATOR_WORLD_PREFIX + worldName;
+                    transaction.sadd(worldKey, serialized);
+                    
+                    // Track owner's worlds
+                    String ownerWorldsKey = GENERATOR_OWNER_PREFIX + owner.toString() + ":worlds";
+                    transaction.sadd(ownerWorldsKey, worldName);
+                    
+                    // Increment generator count
+                    transaction.incr(GENERATOR_COUNT_PREFIX + owner.toString());
+                    
+                    // Add to global indexes for efficient queries
+                    transaction.sadd(GENERATOR_OWNER_INDEX, owner.toString());
+                    transaction.sadd(GENERATOR_WORLD_INDEX, worldName);
+                    
+                    // Execute transaction
+                    transaction.exec();
+                    
+                    Logger.info("Successfully registered generator for owner " + owner + " at " + serialized);
+                } catch (Exception e) {
+                    transaction.discard();
+                    Logger.severe("Failed to register generator: " + e.getMessage());
+                    throw new RuntimeException("Generator registration failed", e);
+                }
+            }
+            
+            return active;
+        });
+    }
+
+    /**
+     * Unregister generator with ATOMIC transaction to ensure data consistency
+     */
     public void unregisterGenerator(@Nullable Block block) {
         if (block == null) return;
-        this.unregisterGenerator(block.getLocation());
+        unregisterGenerator(block.getLocation());
     }
 
     public void unregisterGenerator(Location location) {
-        this.unregisterGenerator(LocationUtils.serialize(location));
+        unregisterGenerator(LocationUtils.serialize(location));
     }
 
     public void unregisterGenerator(String serialized) {
-        ActiveGenerator removed = this.activeGenerators.remove(serialized);
-        // check if the remove is successful
-        if (removed != null) {
-            // remove the corrupt status
-            removed.setCorrupted(false);
-            // force remove
-            GeneratorTask.destroy(removed);
-            // remove the generator count
-            this.removeGeneratorCount(removed.getOwner(), 1);
-            // remove the generator from the database
-            Executor.async(() -> this.dbm.deleteGenerator(removed));
-        }
+        redisManager.executeWithJedis(jedis -> {
+            // Get generator data first
+            String generatorJson = jedis.get(GENERATOR_PREFIX + serialized);
+            if (generatorJson != null) {
+                ActiveGenerator generator = gson.fromJson(generatorJson, ActiveGenerator.class);
+                String worldName = generator.getLocation().getWorld().getName();
+                String ownerStr = generator.getOwner().toString();
+                
+                // Use transaction to ensure atomicity
+                Transaction transaction = jedis.multi();
+                try {
+                    // Remove generator data
+                    transaction.del(GENERATOR_PREFIX + serialized);
+                    
+                    // Remove from owner index
+                    String ownerKey = GENERATOR_OWNER_PREFIX + ownerStr + ":" + worldName;
+                    transaction.srem(ownerKey, serialized);
+                    
+                    // Remove from world index
+                    String worldKey = GENERATOR_WORLD_PREFIX + worldName;
+                    transaction.srem(worldKey, serialized);
+                    
+                    // Decrement generator count
+                    transaction.decr(GENERATOR_COUNT_PREFIX + ownerStr);
+                    
+                    // Remove any locks
+                    transaction.del(GENERATOR_LOCK_PREFIX + serialized);
+                    
+                    // Check if owner has no more generators in this world
+                    long remainingInWorld = jedis.scard(ownerKey);
+                    if (remainingInWorld <= 1) { // Will be 0 after transaction
+                        String ownerWorldsKey = GENERATOR_OWNER_PREFIX + ownerStr + ":worlds";
+                        transaction.srem(ownerWorldsKey, worldName);
+                    }
+                    
+                    // Execute transaction
+                    transaction.exec();
+                    
+                    // Remove from local cache
+                    localActiveGenerators.remove(serialized);
+                    
+                    Logger.info("Successfully unregistered generator at " + serialized);
+                } catch (Exception e) {
+                    transaction.discard();
+                    Logger.severe("Failed to unregister generator: " + e.getMessage());
+                    throw new RuntimeException("Generator unregistration failed", e);
+                }
+            }
+        });
     }
 
     public void removeAllGenerator(Player player) {
-        this.removeAllGenerator(player.getUniqueId());
+        removeAllGenerator(player.getUniqueId());
     }
 
     public void removeAllGenerator(UUID uuid) {
-        this.getActiveGenerator(uuid).forEach(active -> {
-            // Get the block
-            Block block = active.getLocation().getBlock();
-            // Unregister the generator and set it to air
-            this.unregisterGenerator(block);
-            block.setType(Material.AIR);
+        Set<String> generatorIds = getGeneratorsByOwner(uuid);
+        if (generatorIds != null && !generatorIds.isEmpty()) {
+            // Use batch operation for efficiency
+            redisManager.executeWithJedis(jedis -> {
+                Transaction transaction = jedis.multi();
+                try {
+                    for (String generatorId : generatorIds) {
+                        transaction.del(GENERATOR_PREFIX + generatorId);
+                        transaction.del(GENERATOR_LOCK_PREFIX + generatorId);
+                    }
+                    
+                    // Clear all owner-related keys
+                    String ownerWorldsKey = GENERATOR_OWNER_PREFIX + uuid.toString() + ":worlds";
+                    Set<String> worlds = jedis.smembers(ownerWorldsKey);
+                    
+                    for (String world : worlds) {
+                        String ownerKey = GENERATOR_OWNER_PREFIX + uuid.toString() + ":" + world;
+                        transaction.del(ownerKey);
+                        
+                        // Remove from world indexes
+                        String worldKey = GENERATOR_WORLD_PREFIX + world;
+                        for (String generatorId : generatorIds) {
+                            transaction.srem(worldKey, generatorId);
+                        }
+                    }
+                    
+                    // Clear owner data
+                    transaction.del(ownerWorldsKey);
+                    transaction.del(GENERATOR_COUNT_PREFIX + uuid.toString());
+                    transaction.srem(GENERATOR_OWNER_INDEX, uuid.toString());
+                    
+                    transaction.exec();
+                    
+                    // Clear from local cache
+                    for (String generatorId : generatorIds) {
+                        localActiveGenerators.remove(generatorId);
+                    }
+                    
+                    Logger.info("Successfully removed all generators for owner " + uuid);
+                } catch (Exception e) {
+                    transaction.discard();
+                    Logger.severe("Failed to remove all generators: " + e.getMessage());
+                    throw new RuntimeException("Bulk generator removal failed", e);
+                }
+            });
+        }
+    }
+
+    public int getGeneratorCount(Player player) {
+        return getGeneratorCount(player.getUniqueId());
+    }
+
+    public int getGeneratorCount(UUID uuid) {
+        return redisManager.executeWithJedis(jedis -> {
+            String countStr = jedis.get(GENERATOR_COUNT_PREFIX + uuid.toString());
+            return countStr != null ? Integer.parseInt(countStr) : 0;
         });
     }
 
-    public void loadActiveGenerator() {
-        String query = "SELECT * FROM " + DatabaseManager.GENERATOR_TABLE;
-        this.dbm.executeQuery(query, result -> {
-            while (result.next()) {
-                // get the uuid string
-                String uuidString = result.getString(1);
-                // if the uuid string is null, skip the iteration
-                if (uuidString == null) {
-                    continue;
-                }
-                // otherwise, continue to load
-                UUID owner = UUID.fromString(uuidString);
-                String serialized = result.getString(2);
-                Location location = LocationUtils.deserialize(serialized);
-                String generatorId = result.getString(3);
-                double timer = result.getDouble(4);
-                boolean isCorrupted = result.getBoolean(5);
-
-                Generator generator = this.getGenerator(generatorId);
-                if (generatorId == null || generator == null || location.getWorld() == null) continue;
-
-                // store it on the map
-                this.activeGenerators.put(serialized, new ActiveGenerator(owner, location, generator, timer, isCorrupted));
-                // add generator count
-                this.addGeneratorCount(owner, 1);
-            }
-            // send log message
-            Logger.info("Successfully loaded " + this.activeGenerators.size() + " active generators!");
+    /**
+     * Try to acquire lock for a generator with proper expiration
+     * @param generatorId The generator ID
+     * @param ttlSeconds Time to live in seconds
+     * @return true if lock was acquired
+     */
+    public boolean acquireLock(String generatorId, int ttlSeconds) {
+        return redisManager.executeWithJedis(jedis -> {
+            String lockKey = GENERATOR_LOCK_PREFIX + generatorId;
+            String serverId = redisManager.getServerId();
+            
+            // Use SET with NX and EX for atomic lock acquisition
+            String result = jedis.set(lockKey, serverId, "NX", "EX", ttlSeconds);
+            return "OK".equals(result);
         });
     }
 
-    public void saveActiveGenerator(ActiveGenerator active) {
-        this.dbm.saveGenerator(active);
+    /**
+     * Check if this server holds the lock for a generator
+     */
+    public boolean holdsLock(String generatorId) {
+        return redisManager.executeWithJedis(jedis -> {
+            String lockKey = GENERATOR_LOCK_PREFIX + generatorId;
+            String lockHolder = jedis.get(lockKey);
+            return redisManager.getServerId().equals(lockHolder);
+        });
     }
 
-    public void saveActiveGenerator() {
-        this.dbm.saveGenerator(this.activeGenerators.values());
+    /**
+     * Release lock for a generator with atomic check-and-delete
+     */
+    public void releaseLock(String generatorId) {
+        redisManager.executeWithJedis(jedis -> {
+            String lockKey = GENERATOR_LOCK_PREFIX + generatorId;
+            String serverId = redisManager.getServerId();
+            
+            // Use Lua script for atomic check-and-delete
+            String luaScript = 
+                "if redis.call('get', KEYS[1]) == ARGV[1] then " +
+                "    return redis.call('del', KEYS[1]) " +
+                "else " +
+                "    return 0 " +
+                "end";
+            
+            jedis.eval(luaScript, Collections.singletonList(lockKey), Collections.singletonList(serverId));
+        });
     }
 
-    public void loadGenerators() {
-        // Clear the generators map
-        this.generatorMap.clear();
-        // log message
-        Logger.info("Starting to load all generators...");
-        // load all generators files inside the 'generators' directory
-        File directory = this.getMainDirectory();
-        if (directory.exists()) {
-            File[] files = directory.listFiles();
-            if (files != null) {
-                for (File file : files) {
-                    this.loadGenerators(YamlConfiguration.loadConfiguration(file));
+    /**
+     * Add generator to local cache (for this server's processing)
+     */
+    public void addToLocalCache(ActiveGenerator generator) {
+        String serialized = LocationUtils.serialize(generator.getLocation());
+        localActiveGenerators.put(serialized, generator);
+    }
+
+    /**
+     * Remove generator from local cache
+     */
+    public void removeFromLocalCache(String serialized) {
+        localActiveGenerators.remove(serialized);
+    }
+
+    /**
+     * Get all locally cached generators
+     */
+    public Collection<ActiveGenerator> getLocalActiveGenerators() {
+        return localActiveGenerators.values();
+    }
+
+    /**
+     * Save generator state to Redis
+     */
+    public void saveGenerator(ActiveGenerator generator) {
+        redisManager.executeWithJedis(jedis -> {
+            String serialized = LocationUtils.serialize(generator.getLocation());
+            String generatorJson = gson.toJson(generator);
+            jedis.set(GENERATOR_PREFIX + serialized, generatorJson);
+        });
+    }
+
+    /**
+     * Batch save multiple generators for efficiency
+     */
+    public void saveGenerators(Collection<ActiveGenerator> generators) {
+        if (generators.isEmpty()) return;
+        
+        redisManager.executeWithJedis(jedis -> {
+            Transaction transaction = jedis.multi();
+            try {
+                for (ActiveGenerator generator : generators) {
+                    String serialized = LocationUtils.serialize(generator.getLocation());
+                    String generatorJson = gson.toJson(generator);
+                    transaction.set(GENERATOR_PREFIX + serialized, generatorJson);
                 }
+                transaction.exec();
+                Logger.info("Batch saved " + generators.size() + " generators");
+            } catch (Exception e) {
+                transaction.discard();
+                Logger.severe("Failed to batch save generators: " + e.getMessage());
             }
-            // load generator from 'generators.yml'
-            this.loadGenerators(NextGens.GENERATORS_CONFIG.getConfig());
-            // send log message
-            Logger.info("Successfully loaded " + this.generatorMap.size() + " generators!");
-        } else {
-            directory.mkdirs();
-            // generate default files
-            Logger.info("Creating default files for per-file generators system...");
-            NextGens.getInstance().saveResource("generators/elemental_generators.yml", true);
-            Logger.info("Successfully created 'generators/elemental_generators.yml' file");
-            NextGens.getInstance().saveResource("generators/orion_generators.yml", true);
-            Logger.info("Successfully created 'generators/orion_generators.yml' file");
-            // load back the generator
-            this.loadGenerators();
-        }
+        });
     }
 
-    private void loadGenerators(FileConfiguration config) {
-        // get all sections on the config
-        for (String id : config.getKeys(false)) {
-            ConfigurationSection section = config.getConfigurationSection(id);
-            if (section == null) {
-                continue;
-            }
-            // load the generator
-            this.loadGenerators(id, section);
-        }
+    /**
+     * Get all active generator owners for monitoring
+     */
+    public Set<String> getAllOwners() {
+        return redisManager.executeWithJedis(jedis -> {
+            return jedis.smembers(GENERATOR_OWNER_INDEX);
+        });
     }
 
-    private void loadGenerators(String id, ConfigurationSection section) {
-        // get all data
-        String displayName = section.getString("display-name");
-        int interval = section.getInt("interval");
-        boolean corrupted = section.getBoolean("corrupted.enabled");
-        double fixCost = section.getDouble("corrupted.cost");
-        double corruptChance = section.getDouble("corrupted.chance");
-        String nextTier = section.getString("upgrade.next-generator");
-        double upgradeCost = section.getDouble("upgrade.upgrade-cost");
-        // online only options
-        Boolean onlineOnly;
-        if (section.get("online-only") == null) {
-            onlineOnly = null;
-        } else {
-            onlineOnly = section.getBoolean("online-only");
-        }
-
-        ConfigurationSection itemSection = section.getConfigurationSection("item");
-        if (itemSection == null) {
-            Logger.warning("Failed to load generator '" + id + "'");
-            Logger.warning("Reason: There is no generator item configuration!");
-            return;
-        }
-        ItemBuilder builder = ItemBuilder.fromConfig(itemSection);
-        if (builder == null) {
-            Logger.warning("Failed to load generator '" + id + "'");
-            Logger.warning("Reason: Failed to load the generator item configuration!");
-            return;
-        }
-        ItemStack item = builder.build();
-
-        List<Drop> drops = new ArrayList<>();
-
-        if (section.isConfigurationSection("drops")) {
-            for (String key : section.getConfigurationSection("drops").getKeys(false)) {
-                ConfigurationSection dropSection = section.getConfigurationSection("drops." + key);
-                if (dropSection == null) {
-                    continue;
-                }
-                drops.add(Drop.fromConfig(id, key, dropSection));
-            }
-        }
-
-        List<GensRequirement> placeRequirements = this.loadRequirement(section, "place-requirements");
-        List<GensRequirement> upgradeRequirements = this.loadRequirement(section, "upgrade-requirements");
-
-        Generator generator = new Generator(id, displayName, interval, item, drops, nextTier, upgradeCost,
-                corrupted, fixCost, corruptChance, onlineOnly, placeRequirements, upgradeRequirements);
-
-        // call the custom event
-        GeneratorLoadEvent loadEvent = new GeneratorLoadEvent(generator);
-        Bukkit.getPluginManager().callEvent(loadEvent);
-        if (loadEvent.isCancelled()) {
-            return;
-        }
-        // store it on the map
-        this.generatorMap.put(id, generator);
-        // send log message
-        Logger.info("Loaded generator '" + id + "'");
+    /**
+     * Get all worlds with active generators
+     */
+    public Set<String> getAllWorlds() {
+        return redisManager.executeWithJedis(jedis -> {
+            return jedis.smembers(GENERATOR_WORLD_INDEX);
+        });
     }
 
-    private List<GensRequirement> loadRequirement(ConfigurationSection section, String path) {
-        List<GensRequirement> requirements = new ArrayList<>();
-        if (section.isConfigurationSection(path)) {
-            for (String key : section.getConfigurationSection(path).getKeys(false)) {
-                String type = section.getString(path + "." + key + ".type", "DUMMY");
-                String message = section.getString(path + "." + key + ".message", "&cYou don't have the requirement to do this!");
-                switch (type.toUpperCase()) {
-                    case "PERMISSION" -> {
-                        String permission = section.getString(path + "." + key + ".permission");
-                        requirements.add(new PermissionRequirement(message, permission));
-                    }
-                    case "PLACEHOLDER" -> {
-                        String placeholder = section.getString(path + "." + key + ".placeholder");
-                        String value = section.getString(path + "." + key + ".value");
-                        requirements.add(new PlaceholderRequirement(message, placeholder, value));
-                    }
-                }
-            }
-        }
-        return requirements;
+    /**
+     * Clear local caches
+     */
+    public void clearLocalCache() {
+        localActiveGenerators.clear();
     }
 
-    public void refreshActiveGenerator() {
-        for (ActiveGenerator active : this.activeGenerators.values()) {
-            if (active.getGenerator() == null) {
-                this.fixGenerator(active);
-                continue;
-            }
-            // get the new generator
-            Generator refreshed = this.getGenerator(active.getGenerator().id());
-            // if the refreshed is not null
-            if (refreshed != null) {
-                // refresh it
-                active.setGenerator(refreshed);
-            }
-        }
+    /**
+     * Get detailed statistics about Redis usage
+     */
+    public Map<String, Object> getRedisStats() {
+        return redisManager.executeWithJedis(jedis -> {
+            Map<String, Object> stats = new HashMap<>();
+            
+            // Count total generators
+            Set<String> allKeys = jedis.keys(GENERATOR_PREFIX + "*");
+            stats.put("total_generators", allKeys.size());
+            
+            // Count owners
+            stats.put("total_owners", jedis.scard(GENERATOR_OWNER_INDEX));
+            
+            // Count worlds
+            stats.put("total_worlds", jedis.scard(GENERATOR_WORLD_INDEX));
+            
+            // Count active locks
+            Set<String> lockKeys = jedis.keys(GENERATOR_LOCK_PREFIX + "*");
+            stats.put("active_locks", lockKeys.size());
+            
+            // Local cache size
+            stats.put("local_cache_size", localActiveGenerators.size());
+            
+            return stats;
+        });
     }
 
-    private void fixGenerator(ActiveGenerator active) {
-        if (active.getGenerator() != null) {
-            return;
-        }
-        for (Generator generator : this.generatorMap.values()) {
-            if (active.getLocation().getBlock().getType() == generator.item().getType()) {
-                active.setGenerator(generator);
-                break;
-            }
-        }
-    }
-
-    private File getMainDirectory() {
-        return new File(NextGens.getInstance().getDataFolder() + File.separator + "generators");
-    }
-
-}
+} 

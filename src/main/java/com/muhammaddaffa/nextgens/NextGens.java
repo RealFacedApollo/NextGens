@@ -11,6 +11,8 @@ import com.muhammaddaffa.mdlib.utils.updatechecker.UpdateChecker;
 import com.muhammaddaffa.nextgens.api.GeneratorAPI;
 import com.muhammaddaffa.nextgens.commands.*;
 import com.muhammaddaffa.nextgens.generators.runnables.CorruptionTask;
+import com.muhammaddaffa.nextgens.generators.runnables.GeneratorRunner;
+import com.muhammaddaffa.nextgens.generators.runnables.GeneratorLockAcquirer;
 import com.muhammaddaffa.nextgens.generators.runnables.GeneratorTask;
 import com.muhammaddaffa.nextgens.generators.runnables.NotifyTask;
 import com.muhammaddaffa.nextgens.hooks.papi.GensExpansion;
@@ -159,8 +161,9 @@ public final class NextGens extends JavaPlugin {
         STOPPING = true;
         // shutdown the lib
         MDLib.shutdown();
-        // remove all holograms
-        GeneratorTask.flush();
+        // stop federated tasks
+        GeneratorRunner.stop();
+        GeneratorLockAcquirer.stop();
         // save all other things
         save();
         // close the database
@@ -184,11 +187,13 @@ public final class NextGens extends JavaPlugin {
     }
 
     private void tasks() {
-        // start generator task
-        GeneratorTask.start(this.generatorManager, this.eventManager, this.userManager);
-        // corruption task
+        // start federated generator runner with lock-based processing
+        GeneratorRunner.start(this.generatorManager, this.generatorManager, this.eventManager, this.userManager);
+        // start generator lock acquirer for distributed locking
+        GeneratorLockAcquirer.start(this.generatorManager);
+        // corruption task (now federated)
         CorruptionTask.start(this.generatorManager);
-        // notify task
+        // notify task (now federated)
         NotifyTask.start(this.generatorManager);
         // autosell task
         this.autosellManager.startTask();
