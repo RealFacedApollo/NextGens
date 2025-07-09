@@ -254,6 +254,30 @@ public class GeneratorManager {
         this.dbm.saveGenerator(this.activeGenerators.values());
     }
 
+    /**
+     * Registers an active generator directly into memory (used by world load listener)
+     * @param owner The owner's UUID
+     * @param location The location of the generator
+     * @param generator The generator type
+     * @param timer The current timer value
+     * @param isCorrupted Whether the generator is corrupted
+     * @return The registered ActiveGenerator
+     */
+    public ActiveGenerator registerActiveGenerator(UUID owner, Location location, Generator generator, double timer, boolean isCorrupted) {
+        String serialized = LocationUtils.serialize(location);
+        
+        // Check if generator already exists
+        if (this.activeGenerators.containsKey(serialized)) {
+            return this.activeGenerators.get(serialized);
+        }
+        
+        ActiveGenerator active = new ActiveGenerator(owner, location, generator, timer, isCorrupted);
+        this.activeGenerators.put(serialized, active);
+        this.addGeneratorCount(owner, 1);
+        
+        return active;
+    }
+
     public void loadGenerators() {
         // Clear the generators map
         this.generatorMap.clear();
