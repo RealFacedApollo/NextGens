@@ -19,7 +19,6 @@ import com.muhammaddaffa.nextgens.generators.runnables.CorruptionTask;
 import com.muhammaddaffa.nextgens.generators.runnables.GeneratorTask;
 import com.muhammaddaffa.nextgens.generators.runnables.NotifyTask;
 import com.muhammaddaffa.nextgens.hooks.bento.BentoListener;
-import com.muhammaddaffa.nextgens.hooks.fabledsb.FabledSbListener;
 import com.muhammaddaffa.nextgens.hooks.papi.GensExpansion;
 import com.muhammaddaffa.nextgens.hooks.ssb2.SSB2Listener;
 import com.muhammaddaffa.nextgens.sell.multipliers.SellMultiplierRegistry;
@@ -34,8 +33,6 @@ import com.muhammaddaffa.nextgens.utils.Settings;
 import com.muhammaddaffa.nextgens.worth.WorthManager;
 import dev.norska.dsw.DeluxeSellwands;
 import org.bstats.bukkit.Metrics;
-import org.bstats.charts.SimplePie;
-import org.bstats.charts.SingleLineChart;
 import org.bukkit.Bukkit;
 import org.bukkit.NamespacedKey;
 import org.bukkit.configuration.file.FileConfiguration;
@@ -242,12 +239,7 @@ public final class NextGens extends JavaPlugin {
         if (pm.getPlugin("LWC") != null) {
             Logger.info("Found LWC! Registering hook...");
         }
-        if (pm.getPlugin("FabledSkyblock") != null) {
-            Logger.info("Found FabledSkyblock! Registering hook...");
-            pm.registerEvents(new FabledSbListener(this.generatorManager, this.refundManager), this);
-        }
-        // register bstats metrics hook
-        this.connectMetrics();
+        // register bstats metrics
     }
 
     private void update() {
@@ -305,38 +297,6 @@ public final class NextGens extends JavaPlugin {
         PickupCommand.register(this.generatorManager);
         WorthCommand.registerThis();
         PlayerSettingsCommand.register(this.userManager);
-    }
-
-    private void connectMetrics() {
-        // connect to bstats metrics
-        Metrics metrics = new Metrics(this, BSTATS_ID);
-        // add custom charts
-        Map<String, String> data = new HashMap<>();
-        data.put("corruption", "corruption.enabled");
-        data.put("auto_save", "auto-save.enabled");
-        data.put("place_permission", "place-permission");
-        data.put("online_only", "online-only");
-        data.put("anti_explosion", "anti-explosion");
-        data.put("disable_drop_place", "disable-drop-place");
-        data.put("shift_pickup", "shift-pickup");
-        data.put("island_pickup", "island-pickup");
-        data.put("upgrade_gui", "upgrade-gui");
-        data.put("close_on_purchase", "close-on-purchase");
-        data.put("close_on_no_money", "close-on-no-money");
-        data.put("hook_shopguiplus", "sell-options.hook_shopguiplus");
-        data.put("drop_on_break", "drop-on-break");
-        data.put("broken_pickup", "broken-pickup");
-        // create a custom charts
-        data.forEach((id, path) -> {
-            metrics.addCustomChart(this.createSimplePie(id, path));
-        });
-        // single line chart
-        metrics.addCustomChart(new SingleLineChart("total_generators", () -> this.generatorManager.getActiveGenerator().size()));
-    }
-
-    private SimplePie createSimplePie(String id, String path) {
-        FileConfiguration config = NextGens.DEFAULT_CONFIG.getConfig();
-        return new SimplePie(id, () -> this.yesOrNo(config.getBoolean(path)));
     }
 
     private void updateCheck(){

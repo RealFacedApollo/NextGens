@@ -73,10 +73,6 @@
 
     <repositories>
         <repository>
-            <id>craftaro-minecraft-plugins</id>
-            <url>https://repo.craftaro.com/repository/minecraft-plugins/</url>
-        </repository>
-        <repository>
             <id>spigotmc-repo</id>
             <url>https://hub.spigotmc.org/nexus/content/repositories/snapshots/</url>
         </repository>
@@ -221,13 +217,6 @@
             <groupId>com.github.DeadSilenceIV</groupId>
             <artifactId>AdvancedChestsAPI</artifactId>
             <version>LATEST</version>
-            <scope>provided</scope>
-        </dependency>
-        <!-- FabledSkyblock -->
-        <dependency>
-            <groupId>com.craftaro</groupId>
-            <artifactId>FabledSkyBlock</artifactId>
-            <version>3.0.4-SNAPSHOT</version>
             <scope>provided</scope>
         </dependency>
         <!-- PlotSquared -->
